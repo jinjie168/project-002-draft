@@ -704,7 +704,7 @@ const Snd={ctx:null,master:null,mus:null,sfx:null,sfxOn:true,musicOn:true,timer:
     if(!this.ok())return;const t=this.ctx.currentTime;
     [392,349.23,311.13,261.63].forEach((f,i)=>this.note(f,t+i*.22,.55,'triangle',.35,this.sfx));
   }};
-document.addEventListener('visibilitychange',()=>{const c=Snd.ctx;if(!c)return;if(document.hidden)c.suspend();else c.resume();});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(()=>{try{CV.heal();}catch(e){}},250);const c=Snd.ctx;if(!c)return;if(document.hidden)c.suspend();else c.resume();});
 let retry=false,timer,level=1,n=3,g,left,cleared,busy,over,start=null;
 const $=id=>document.getElementById(id),G=$('g');
 const fullLines=()=>{
@@ -744,7 +744,15 @@ const CV={q:2,auto:true,on:false,sel:-1,anim:null,bst:null,parts:[],hint:null,lo
     this.sig=null;this.glowDirty=true;
     this.build();
   },
+  free(){const z=k=>{if(k){k.width=0;k.height=0;}};(this.sp||[]).forEach(z);[this.tile,this.panel,this.wheel,this.gmask,this.gtmp,this.hand].forEach(z);},
+  // iOS may silently blank big canvases under memory pressure / after backgrounding: the board panel is always painted, so a transparent centre pixel means the layer was lost
+  heal(){
+    if(!this.on||!this.panel||!this.cb.width)return;const g=document.getElementById('game');if(!g||g.style.display!=='flex')return;
+    let lost=false;try{const m=Math.round(this.cb.width/2);lost=this.cb.getContext('2d').getImageData(m,m,1,1).data[3]===0;}catch(e){}
+    if(lost)this.layout(true);
+  },
   build(){
+    this.free();
     const {d,c,px,W,S,M}=this,mk=(w,h)=>{const k=document.createElement('canvas');k.width=Math.ceil(w);k.height=Math.ceil(h);return k;};
     const sz=Math.ceil(c*d);
     this.sp=E.map((em,i)=>{const k=mk(sz,sz),x=k.getContext('2d'),im=FR.imgs[i];
@@ -1586,7 +1594,9 @@ if(!(window.CSS&&CSS.registerProperty))document.documentElement.classList.add('f
 function applyZoom(){document.documentElement.classList.toggle('sm',window.innerWidth/window.innerHeight<.6);}
 applyZoom();
 let vpRaf=0;
+let vpT=0;
 function onViewport(){   // resize + orientationchange arrive in bursts: handle once per frame
+  clearTimeout(vpT);vpT=setTimeout(()=>{if(typeof CV!=='undefined'&&CV.on){applyZoom();CV.layout();CV.heal();}},400);   // settled: final size (iOS reports it late) + recover a lost canvas
   if(vpRaf)return;
   vpRaf=requestAnimationFrame(()=>{vpRaf=0;applyZoom();const g=document.getElementById('game');if(typeof CV!=='undefined'&&CV.on&&g&&g.style.display==='flex')CV.layout();});
 }
